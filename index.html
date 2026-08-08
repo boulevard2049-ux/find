@@ -19,6 +19,8 @@
   header { margin-bottom: 16px; }
   h1 { font-size: 1.45rem; letter-spacing: -0.02em; }
   .sub { color: #7a7a8c; font-size: 0.85rem; margin-top: 2px; }
+  /* La ville reprend exactement la typo du titre, séparée par une barre verticale */
+  .city:not(:empty)::before { content: "|"; color: #c8c8d4; font-weight: 400; margin: 0 8px; }
 
   .bar { display: flex; gap: 8px; margin-bottom: 14px; }
   select, .btn {
@@ -27,20 +29,21 @@
     cursor: pointer; -webkit-appearance: none; appearance: none;
   }
   select { padding-right: 32px; background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'><path d='M2 4l4 4 4-4' fill='none' stroke='%23888' stroke-width='1.6' stroke-linecap='round'/></svg>"); background-repeat: no-repeat; background-position: right 12px center; }
-  .btn.primary { flex: 1; background: #2563eb; color: #fff; border: none; font-weight: 600; }
-  .btn.primary:active { background: #1d4ed8; }
-  .btn.primary:disabled { background: #a8c0f2; }
+  .btn.primary { flex: 1; background: #6B9AAF; color: #fff; border: none; font-weight: 600; }
+  .btn.primary:active { background: #5A8598; }
+  .btn.primary:disabled { background: #b3c9d4; }
 
-  /* Filtres de catégorie */
+  /* Menu latéral : sélection de ce qu'on cherche (défilement horizontal) */
   .filters { display: flex; gap: 7px; overflow-x: auto; padding-bottom: 10px; margin-bottom: 6px; scrollbar-width: none; }
   .filters::-webkit-scrollbar { display: none; }
   .chip {
-    flex: 0 0 auto; font-size: 0.85rem; font-weight: 600; padding: 8px 13px;
-    border-radius: 999px; border: 1px solid #e0e0e8; background: #fff; color: #46465c;
+    flex: 0 0 auto; font: inherit; font-size: 0.85rem; font-weight: 600; padding: 8px 13px;
+    border-radius: 999px; border: 1px solid #e0e0e8; background: #fff; color: #77778c;
     cursor: pointer; white-space: nowrap;
   }
-  .chip.active { background: #14142b; color: #fff; border-color: #14142b; }
-  .chip .n { opacity: 0.55; font-weight: 500; margin-left: 3px; }
+  .chip.active { background: #6B9AAF; color: #fff; border-color: #6B9AAF; }
+  .chip.all { border-style: dashed; color: #6B9AAF; }
+  .chip .n { opacity: 0.6; font-weight: 500; margin-left: 4px; }
 
   .toggle-row { display: flex; align-items: center; gap: 16px; margin: 4px 0 14px; font-size: 0.85rem; color: #7a7a8c; }
   .toggle-row label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
@@ -82,12 +85,12 @@
 <body>
 <div class="wrap">
   <header>
-    <h1>Autour de moi</h1>
+    <h1>Autour de moi <span class="city" id="city"></span></h1>
     <p class="sub">Commerces et restos ouverts en ce moment</p>
   </header>
 
   <div class="bar">
-    <select id="radius" onchange="search()">
+    <select id="radius" onchange="onRadiusChange()">
       <option value="3">3 min à pied</option>
       <option value="5">5 min à pied</option>
       <option value="10" selected>10 min à pied</option>
@@ -95,7 +98,7 @@
       <option value="20">20 min à pied</option>
       <option value="30">30 min à pied</option>
     </select>
-    <button class="btn primary" id="searchBtn" onclick="search(true)">Actualiser</button>
+    <button class="btn primary" id="searchBtn" onclick="search(true)" disabled>Rechercher</button>
   </div>
 
   <div class="filters" id="filters"></div>
@@ -104,7 +107,7 @@
   </div>
   <p class="gps-warn" id="gpsWarn" style="display:none"></p>
 
-  <div id="results"><div class="msg"><div class="spinner"></div>Localisation…</div></div>
+  <div id="results"><div class="msg">Choisis ce que tu cherches, puis appuie sur Rechercher.</div></div>
 </div>
 
 <script>
@@ -112,23 +115,26 @@
 /* Chaque catégorie regroupe des types OpenStreetMap sous un même filtre.   */
 /* Un lieu peut appartenir à PLUSIEURS catégories : un bar qui sert à manger
    apparaît à la fois dans "Boire un verre" et dans "Manger". */
+/* label  = nom de l'onglet dans les résultats
+   action = ce que tu veux faire, affiché dans le sélecteur du haut */
 const CATEGORIES = [
-  { id: "food",     label: "Manger",       icon: "🍽️", amenity: ["restaurant","fast_food","cafe","ice_cream"], shop: ["bakery","deli","pastry","confectionery"],
+  { id: "food",     label: "Manger",       action: "Manger",                  icon: "🍽️", amenity: ["restaurant","fast_food","cafe","ice_cream"], shop: ["bakery","deli","pastry","confectionery"],
     alsoFrom: ["drink"], also: (t) => servesFood(t) },
-  { id: "drink",    label: "Boire un verre", icon: "🍺", amenity: ["bar","pub","biergarten","nightclub","cafe"] },
-  { id: "grocery",  label: "Courses",      icon: "🛒", shop: ["supermarket","convenience","greengrocer","butcher","cheese","seafood","alcohol","beverages","wine","frozen_food","organic","farm"] },
-  { id: "health",   label: "Santé",        icon: "💊", amenity: ["pharmacy","doctors","dentist","veterinary"], shop: ["chemist","optician","hearing_aids","medical_supply"] },
-  { id: "pressing", label: "Pressing",     icon: "👔", shop: ["dry_cleaning"],
+  { id: "drink",    label: "Boire un verre", action: "Boire un verre",        icon: "🍺", amenity: ["bar","pub","biergarten","nightclub","cafe"] },
+  { id: "market",   label: "Supermarché",  action: "Aller au supermarché",    icon: "🏪", shop: ["supermarket","hypermarket","wholesale"] },
+  { id: "grocery",  label: "Courses",      action: "Faire mes courses",       icon: "🛒", shop: ["supermarket","convenience","greengrocer","butcher","cheese","seafood","alcohol","beverages","wine","frozen_food","organic","farm"] },
+  { id: "health",   label: "Santé",        action: "Voir un médecin",         icon: "🩺", amenity: ["doctors","dentist","veterinary"], shop: ["optician","hearing_aids","medical_supply"] },
+  { id: "pressing", label: "Pressing",     action: "Déposer au pressing",     icon: "👔", shop: ["dry_cleaning"],
     alsoFrom: ["laverie","tailor"], also: (t, n) => t.dry_cleaning === "yes" || /pressing|teinturerie|nettoyage à sec|blanchisserie/i.test(n) },
-  { id: "laverie",  label: "Laverie",      icon: "🧺", shop: ["laundry"],
+  { id: "laverie",  label: "Laverie",      action: "Faire ma lessive",        icon: "🧺", shop: ["laundry"],
     alsoFrom: ["pressing"], also: (t, n) => t.self_service === "yes" || t.laundry_service === "yes" || /laverie|lavomatic|laundromat|launderette|lav'|wash/i.test(n) },
-  { id: "tailor",   label: "Tailleur",     icon: "🧵", shop: ["tailor","sewing"], craft: ["tailor","dressmaker","seamstress"],
+  { id: "tailor",   label: "Tailleur",     action: "Faire une retouche",      icon: "🧵", shop: ["tailor","sewing"], craft: ["tailor","dressmaker","seamstress"],
     alsoFrom: ["pressing","laverie"], also: (t, n) => t.tailor === "yes" || t.craft === "tailor" || /retouche|couture|tailleur|coutur/i.test(n) },
-  { id: "services", label: "Services",     icon: "✂️", amenity: ["bank","post_office","fuel","car_wash"], shop: ["hairdresser","beauty","tattoo","travel_agency","copyshop","funeral_directors","estate_agent","shoe_repair","locksmith"] },
-  { id: "shopping", label: "Boutiques",    icon: "👕", shop: ["clothes","shoes","jewelry","bag","boutique","fabric","watches","fashion_accessories","second_hand","charity"] },
-  { id: "tech",     label: "Tech",         icon: "📱", shop: ["electronics","mobile_phone","computer","video_games","hifi","photo"] },
-  { id: "home",     label: "Maison",       icon: "🔧", shop: ["hardware","doityourself","furniture","garden_centre","florist","houseware","paint","electrical","trade"] },
-  { id: "leisure",  label: "Loisirs",      icon: "📚", shop: ["books","sports","toys","music","musical_instrument","bicycle","pet","art","stationery","newsagent","gift","kiosk","tobacco"] }
+  { id: "services", label: "Services",     action: "Coiffeur, banque, poste", icon: "✂️", amenity: ["bank","post_office","fuel","car_wash"], shop: ["hairdresser","beauty","tattoo","travel_agency","copyshop","funeral_directors","estate_agent","shoe_repair","locksmith"] },
+  { id: "shopping", label: "Boutiques",    action: "Faire du shopping",       icon: "👕", shop: ["clothes","shoes","jewelry","bag","boutique","fabric","watches","fashion_accessories","second_hand","charity"] },
+  { id: "tech",     label: "Tech",         action: "Acheter du high-tech",    icon: "📱", shop: ["electronics","mobile_phone","computer","video_games","hifi","photo"] },
+  { id: "home",     label: "Maison",       action: "Bricoler ou décorer",     icon: "🔧", shop: ["hardware","doityourself","furniture","garden_centre","florist","houseware","paint","electrical","trade"] },
+  { id: "leisure",  label: "Loisirs",      action: "Loisirs et culture",      icon: "📚", shop: ["books","sports","toys","music","musical_instrument","bicycle","pet","art","stationery","newsagent","gift","kiosk","tobacco"] }
 ];
 
 /* Libellés lisibles pour les types les plus courants */
@@ -136,11 +142,12 @@ const LABELS = {
   restaurant:"Restaurant", fast_food:"Fast-food", cafe:"Café", bar:"Bar", pub:"Pub", ice_cream:"Glacier",
   biergarten:"Bière en plein air", nightclub:"Boîte de nuit",
   bakery:"Boulangerie", pastry:"Pâtisserie", deli:"Traiteur", confectionery:"Confiserie",
-  supermarket:"Supermarché", convenience:"Épicerie", greengrocer:"Primeur", butcher:"Boucherie",
+  supermarket:"Supermarché", hypermarket:"Hypermarché", wholesale:"Grossiste",
+  convenience:"Épicerie", greengrocer:"Primeur", butcher:"Boucherie",
   cheese:"Fromagerie", seafood:"Poissonnerie", alcohol:"Caviste", beverages:"Boissons", wine:"Caviste",
   frozen_food:"Surgelés", organic:"Bio", farm:"Producteur",
-  pharmacy:"Pharmacie", doctors:"Cabinet médical", dentist:"Dentiste", veterinary:"Vétérinaire",
-  chemist:"Parapharmacie", optician:"Opticien", hearing_aids:"Audioprothésiste", medical_supply:"Matériel médical",
+  doctors:"Cabinet médical", dentist:"Dentiste", veterinary:"Vétérinaire",
+  optician:"Opticien", hearing_aids:"Audioprothésiste", medical_supply:"Matériel médical",
   bank:"Banque", post_office:"Poste", fuel:"Station-service", car_wash:"Lavage auto",
   hairdresser:"Coiffeur", laundry:"Laverie", dry_cleaning:"Pressing", beauty:"Institut de beauté",
   self_service_laundry:"Laverie automatique",
@@ -162,9 +169,62 @@ const LABELS = {
 const DAYS = { Su:0, Mo:1, Tu:2, We:3, Th:4, Fr:5, Sa:6 };
 
 let allPlaces = [];       // tous les résultats de la dernière recherche
-let activeCat = "all";    // catégorie sélectionnée
 let gpsAccuracy = null;   // marge d'erreur de la position, en mètres
 let cache = {};           // dernière réponse du serveur, réutilisée entre les distances
+
+/* ===================== CE QU'ON CHERCHE ===================== */
+/* Rien ne part tant qu'aucune case n'est cochée. La requête n'interroge que
+   les catégories choisies : plus rapide, et uniquement ce qui t'intéresse. */
+let searchCats = [];
+let hasSearched = false;
+
+function renderPicker() {
+  const all = searchCats.length === CATEGORIES.length;
+  const counts = {};
+  allPlaces.forEach(p => p.cats.forEach(c => counts[c] = (counts[c] || 0) + 1));
+
+  document.getElementById("filters").innerHTML =
+    `<button class="chip all" onclick="toggleAll()">${all ? "Aucun" : "Tout"}</button>` +
+    CATEGORIES.map(c => {
+      const n = counts[c.id] ? `<span class="n">${counts[c.id]}</span>` : "";
+      return `<button class="chip${searchCats.includes(c.id) ? " active" : ""}" onclick="togglePick('${c.id}')">${c.icon} ${c.action}${n}</button>`;
+    }).join("");
+
+  // Le bouton reste inactif tant que rien n'est sélectionné
+  document.getElementById("searchBtn").disabled = searchCats.length === 0;
+  try { localStorage.setItem("searchCats", JSON.stringify(searchCats)); } catch {}
+}
+
+function togglePick(id) {
+  searchCats = searchCats.includes(id) ? searchCats.filter(x => x !== id) : searchCats.concat(id);
+  renderPicker();
+}
+
+function toggleAll() {
+  searchCats = searchCats.length === CATEGORIES.length ? [] : CATEGORIES.map(c => c.id);
+  renderPicker();
+}
+
+/* Changer la distance ne relance la recherche que si on en a déjà fait une */
+function onRadiusChange(e) {
+  try { localStorage.setItem("radius", document.getElementById("radius").value); } catch {}
+  if (hasSearched && searchCats.length) search();
+}
+
+/* Construit la requête Overpass à partir des seules catégories cochées */
+function buildQuery(radius, lat, lon) {
+  const shops = new Set(), amenities = new Set(), crafts = new Set();
+  for (const c of CATEGORIES) {
+    if (!searchCats.includes(c.id)) continue;
+    (c.shop    || []).forEach(v => shops.add(v));
+    (c.amenity || []).forEach(v => amenities.add(v));
+    (c.craft   || []).forEach(v => crafts.add(v));
+  }
+  const line = (key, set) => set.size
+    ? `nwr["${key}"~"^(${[...set].join("|")})$"](around:${radius},${lat},${lon});`
+    : "";
+  return `[out:json][timeout:15];\n(\n${line("shop", shops)}\n${line("amenity", amenities)}\n${line("craft", crafts)}\n);\nout center tags;`;
+}
 
 /* ===================== ACCÈS AU SERVEUR OVERPASS ===================== */
 /* Overpass est un service public gratuit : il limite le nombre de requêtes
@@ -220,8 +280,15 @@ function errorText(e) {
 function search(force) {
   const btn = document.getElementById("searchBtn");
   const results = document.getElementById("results");
+
+  // Garde-fou : aucune recherche sans sélection
+  if (!searchCats.length) {
+    results.innerHTML = '<div class="msg">Choisis d\'abord ce que tu cherches.</div>';
+    return;
+  }
+
+  hasSearched = true;
   btn.disabled = true;
-  document.getElementById("filters").innerHTML = "";
   document.getElementById("toggleRow").style.display = "none";
   results.innerHTML = '<div class="msg"><div class="spinner"></div>Localisation…</div>';
 
@@ -254,11 +321,13 @@ function search(force) {
 
     // Si on a déjà les données d'un périmètre plus large au même endroit,
     // on filtre localement : aucune requête réseau, résultat instantané.
-    if (!force && cache.places && radius <= cache.radius &&
+    // Le cache n'est réutilisable que s'il couvre déjà toutes les catégories cochées
+    const covered = cache.cats && searchCats.every(id => cache.cats.includes(id));
+    if (!force && cache.places && covered && radius <= cache.radius &&
         Date.now() - cache.time < CACHE_MS &&
         haversine(lat, lon, cache.lat, cache.lon) < 60) {
       allPlaces = cache.places.filter(p => p.dist <= radius);
-      activeCat = "all";
+      showCity(cache.places, lat, lon);
       paint();
       btn.disabled = false;
       return;
@@ -266,23 +335,16 @@ function search(force) {
 
     results.innerHTML = '<div class="msg"><div class="spinner"></div>Recherche des commerces…</div>';
 
-    // On interroge exactement le périmètre demandé : une recherche à 3 min
-    // reste légère et rapide. Le cache évite les requêtes inutiles ensuite.
+    // Requête limitée au périmètre demandé ET aux catégories cochées
     const fetchRadius = radius;
-    const query = `[out:json][timeout:15];
-      (
-        nwr["shop"](around:${fetchRadius},${lat},${lon});
-        nwr["amenity"~"^(restaurant|fast_food|cafe|bar|pub|biergarten|nightclub|ice_cream|pharmacy|bank|post_office|fuel|doctors|dentist|veterinary|car_wash)$"](around:${fetchRadius},${lat},${lon});
-        nwr["craft"~"^(tailor|dressmaker|seamstress|shoemaker)$"](around:${fetchRadius},${lat},${lon});
-      );
-      out center tags;`;
+    const query = buildQuery(fetchRadius, lat, lon);
 
     try {
       const data = await overpass(query, results);
       const places = buildPlaces(data.elements, lat, lon);
-      cache = { lat, lon, radius: fetchRadius, places, time: Date.now() };
+      cache = { lat, lon, radius: fetchRadius, places, time: Date.now(), cats: searchCats.slice() };
       allPlaces = places.filter(p => p.dist <= radius);
-      activeCat = "all";
+      showCity(places, lat, lon);
       paint();
     } catch (e) {
       results.innerHTML = '<div class="msg">' + errorText(e) + '</div>';
@@ -315,6 +377,8 @@ function buildPlaces(elements, myLat, myLon) {
         terrace: t.outdoor_seating === "yes",
         selfService: t.self_service === "yes",
         address: formatAddress(t),
+        city: t["addr:city"] || null,
+        postcode: t["addr:postcode"] || null,
         dist: haversine(myLat, myLon, lat, lon),
         lat, lon,
         status: t.opening_hours ? isOpenNow(t.opening_hours, now) : null
@@ -356,6 +420,46 @@ function catLabel(id) {
   return c ? c.label : "Autres";
 }
 
+/* ===================== VILLE DÉTECTÉE ===================== */
+/* Méthode 1 (immédiate, sans requête) : la ville la plus fréquente parmi les
+   lieux trouvés autour de toi, plus l'arrondissement s'il y en a un. */
+function cityFromPlaces(places) {
+  const tally = {};
+  for (const p of places) if (p.city) tally[p.city] = (tally[p.city] || 0) + 1;
+  const city = Object.keys(tally).sort((a, b) => tally[b] - tally[a])[0];
+  if (!city) return null;
+
+  const arrTally = {};
+  for (const p of places) {
+    if (p.city !== city) continue;
+    const a = arrondissement(p.postcode);
+    if (a) arrTally[a] = (arrTally[a] || 0) + 1;
+  }
+  const arr = Object.keys(arrTally).sort((a, b) => arrTally[b] - arrTally[a])[0];
+  return arr ? city + " " + arr : city;
+}
+
+/* Méthode 2 (repli) : géocodage inverse OpenStreetMap. Lancé en arrière-plan,
+   il ne retarde jamais l'affichage des résultats. */
+async function cityFromCoords(lat, lon) {
+  try {
+    const url = "https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=14&lat=" + lat + "&lon=" + lon;
+    const resp = await fetch(url, { headers: { "Accept-Language": "fr" } });
+    if (!resp.ok) return null;
+    const a = (await resp.json()).address || {};
+    return a.city || a.town || a.village || a.municipality || a.county || null;
+  } catch { return null; }
+}
+
+/* Renseigne la pastille du titre */
+function showCity(places, lat, lon) {
+  const el = document.getElementById("city");
+  const local = cityFromPlaces(places);
+  if (local) { el.textContent = local; return; }
+  el.textContent = "";
+  cityFromCoords(lat, lon).then(name => { if (name) el.textContent = name; });
+}
+
 /* ===================== ADRESSE ===================== */
 /* Reconstruit "12 rue de Rivoli · 4e" (Paris) ou "12 rue Victor Hugo · Lyon" ailleurs. */
 function formatAddress(t) {
@@ -393,16 +497,8 @@ function paint() {
     return;
   }
 
-  // Barre de filtres : uniquement les catégories réellement présentes
-  const counts = {};
-  allPlaces.forEach(p => p.cats.forEach(c => counts[c] = (counts[c] || 0) + 1));
-  const chips = [{ id: "all", label: "Tout", icon: "", n: allPlaces.length }]
-    .concat(CATEGORIES.filter(c => counts[c.id]).map(c => ({ id: c.id, label: c.label, icon: c.icon, n: counts[c.id] })));
-  if (counts.other) chips.push({ id: "other", label: "Autres", icon: "🏬", n: counts.other });
-
-  document.getElementById("filters").innerHTML = chips.map(c =>
-    `<button class="chip${c.id === activeCat ? " active" : ""}" onclick="setCat('${c.id}')">${c.icon} ${c.label}<span class="n">${c.n}</span></button>`
-  ).join("");
+  // Le menu latéral reste la sélection ; on y ajoute juste le nombre trouvé
+  renderPicker();
   document.getElementById("toggleRow").style.display = "flex";
 
   // Avertissement si le GPS est imprécis (intérieur, métro, immeubles hauts)
@@ -414,8 +510,8 @@ function paint() {
     warn.style.display = "none";
   }
 
-  // Application des filtres
-  let list = activeCat === "all" ? allPlaces : allPlaces.filter(p => p.cats.includes(activeCat));
+  // Les résultats correspondent déjà aux catégories cochées
+  let list = allPlaces;
   if (document.getElementById("onlyOpen").checked) list = list.filter(p => p.status === true);
 
   if (!list.length) {
@@ -434,12 +530,6 @@ function paint() {
   results.innerHTML = html;
 }
 
-function setCat(id) {
-  activeCat = id;
-  paint();
-  window.scrollTo({ top: 0, behavior: "smooth" });
-}
-
 function card(p) {
   const badge = p.status === true  ? '<span class="badge open">Ouvert</span>'
               : p.status === false ? '<span class="badge closed">Fermé</span>'
@@ -451,8 +541,7 @@ function card(p) {
     : `<div class="addr muted">Adresse non renseignée</div>`;
 
   // Doublons : les autres catégories auxquelles ce lieu appartient
-  const ref = activeCat === "all" ? p.cats[0] : activeCat;
-  const others = p.cats.filter(c => c !== ref).map(catLabel);
+  const others = p.cats.slice(1).map(catLabel);
   const also = others.length
     ? `<div class="also">↔ Apparaît également dans ${esc(others.join(", "))}</div>`
     : "";
@@ -541,8 +630,17 @@ const radiusForMinutes = min => Math.round(min * WALK_M_PER_MIN / DETOUR_FACTOR)
 const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
 
-/* Lancement automatique à l'ouverture */
-window.addEventListener("load", search);
+/* Au démarrage : on restaure les choix précédents mais on NE lance PAS la
+   recherche — c'est à toi de sélectionner puis d'appuyer sur Rechercher. */
+window.addEventListener("load", () => {
+  try {
+    const saved = JSON.parse(localStorage.getItem("searchCats"));
+    if (Array.isArray(saved)) searchCats = saved.filter(id => CATEGORIES.some(c => c.id === id));
+    const savedRadius = localStorage.getItem("radius");
+    if (savedRadius) document.getElementById("radius").value = savedRadius;
+  } catch {}
+  renderPicker();
+});
 </script>
 </body>
 </html>
