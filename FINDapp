@@ -1,0 +1,244 @@
+
+Index · HTML
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Magasins">
+<title>Magasins ouverts près de moi</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #f4f5f7; color: #1a1a2e; min-height: 100vh;
+  }
+  .container { max-width: 640px; margin: 0 auto; padding: 24px 16px; }
+  h1 { font-size: 1.5rem; margin-bottom: 4px; }
+  .subtitle { color: #666; font-size: 0.9rem; margin-bottom: 20px; }
+  .controls { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+  select, button {
+    padding: 12px 16px; border-radius: 12px; border: 1px solid #ddd;
+    font-size: 1rem; background: #fff; cursor: pointer;
+  }
+  button.primary {
+    background: #2563eb; color: #fff; border: none; font-weight: 600; flex: 1;
+  }
+  button.primary:active { background: #1d4ed8; }
+  button.primary:disabled { background: #93b4f5; cursor: wait; }
+  .status-msg { text-align: center; color: #666; padding: 20px; }
+  .card {
+    background: #fff; border-radius: 14px; padding: 14px 16px; margin-bottom: 10px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06); display: flex; align-items: center; gap: 12px;
+  }
+  .card .info { flex: 1; min-width: 0; }
+  .card .name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card .meta { font-size: 0.82rem; color: #777; margin-top: 2px; }
+  .badge {
+    font-size: 0.78rem; font-weight: 700; padding: 4px 10px; border-radius: 999px; white-space: nowrap;
+  }
+  .badge.open { background: #dcfce7; color: #15803d; }
+  .badge.closed { background: #fee2e2; color: #b91c1c; }
+  .badge.unknown { background: #f3f4f6; color: #6b7280; }
+  .card a { text-decoration: none; font-size: 1.2rem; }
+  .section-title { font-size: 0.85rem; font-weight: 700; color: #888; text-transform: uppercase; margin: 18px 0 8px; }
+  .hours-raw { font-size: 0.75rem; color: #999; margin-top: 2px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>🛍️ Magasins ouverts près de moi</h1>
+  <p class="subtitle">Données OpenStreetMap · statut calculé en temps réel</p>
+ 
+  <div class="controls">
+    <select id="radius">
+      <option value="500">500 m</option>
+      <option value="1000" selected>1 km</option>
+      <option value="2000">2 km</option>
+      <option value="5000">5 km</option>
+    </select>
+    <button class="primary" id="searchBtn" onclick="search()">📍 Chercher autour de moi</button>
+  </div>
+ 
+  <div id="results"><p class="status-msg">Clique sur le bouton pour lancer la recherche.</p></div>
+</div>
+ 
+<script>
+const DAYS = { Su: 0, Mo: 1, Tu: 2, We: 3, Th: 4, Fr: 5, Sa: 6 };
+const SHOP_LABELS = {
+  supermarket: "Supermarché", convenience: "Épicerie", bakery: "Boulangerie",
+  butcher: "Boucherie", clothes: "Vêtements", pharmacy: "Pharmacie",
+  hairdresser: "Coiffeur", florist: "Fleuriste", greengrocer: "Primeur",
+  electronics: "Électronique", shoes: "Chaussures", books: "Librairie",
+  tobacco: "Tabac", alcohol: "Caviste", pet: "Animalerie", kiosk: "Kiosque",
+  chemist: "Droguerie/Parapharmacie", mobile_phone: "Téléphonie", jewelry: "Bijouterie",
+  furniture: "Meubles", sports: "Sport", toys: "Jouets", optician: "Opticien",
+  hardware: "Bricolage", doityourself: "Bricolage", deli: "Traiteur", mall: "Centre commercial"
+};
+ 
+function search() {
+  const btn = document.getElementById("searchBtn");
+  const results = document.getElementById("results");
+  btn.disabled = true;
+  results.innerHTML = '<p class="status-msg">📡 Localisation en cours…</p>';
+ 
+  navigator.geolocation.getCurrentPosition(async pos => {
+    const { latitude: lat, longitude: lon } = pos.coords;
+    const radius = document.getElementById("radius").value;
+    results.innerHTML = '<p class="status-msg">🔎 Recherche des magasins…</p>';
+ 
+    const query = `[out:json][timeout:25];
+      (
+        nwr["shop"](around:${radius},${lat},${lon});
+        nwr["amenity"="pharmacy"](around:${radius},${lat},${lon});
+      );
+      out center tags;`;
+ 
+    try {
+      const resp = await fetch("https://overpass-api.de/api/interpreter", {
+        method: "POST",
+        body: "data=" + encodeURIComponent(query)
+      });
+      const data = await resp.json();
+      render(data.elements, lat, lon);
+    } catch (e) {
+      results.innerHTML = '<p class="status-msg">❌ Erreur réseau. Réessaie dans quelques secondes.</p>';
+    } finally {
+      btn.disabled = false;
+    }
+  }, err => {
+    results.innerHTML = '<p class="status-msg">❌ Impossible d\'obtenir ta position. Autorise la géolocalisation dans ton navigateur.</p>';
+    btn.disabled = false;
+  }, { enableHighAccuracy: true, timeout: 10000 });
+}
+ 
+function render(elements, myLat, myLon) {
+  const now = new Date();
+  const shops = elements
+    .filter(el => el.tags && el.tags.name)
+    .map(el => {
+      const lat = el.lat ?? el.center?.lat;
+      const lon = el.lon ?? el.center?.lon;
+      return {
+        name: el.tags.name,
+        type: SHOP_LABELS[el.tags.shop] || el.tags.shop || "Pharmacie",
+        hours: el.tags.opening_hours || null,
+        dist: distance(myLat, myLon, lat, lon),
+        lat, lon,
+        status: el.tags.opening_hours ? isOpenNow(el.tags.opening_hours, now) : null
+      };
+    })
+    .sort((a, b) => a.dist - b.dist);
+ 
+  const open = shops.filter(s => s.status === true);
+  const closed = shops.filter(s => s.status === false);
+  const unknown = shops.filter(s => s.status === null);
+ 
+  let html = "";
+  if (!shops.length) {
+    html = '<p class="status-msg">Aucun magasin trouvé dans ce rayon. Essaie un rayon plus grand.</p>';
+  } else {
+    if (open.length) html += `<p class="section-title">✅ Ouverts maintenant (${open.length})</p>` + open.map(card).join("");
+    if (closed.length) html += `<p class="section-title">🔴 Fermés (${closed.length})</p>` + closed.map(card).join("");
+    if (unknown.length) html += `<p class="section-title">❓ Horaires inconnus (${unknown.length})</p>` + unknown.map(card).join("");
+  }
+  document.getElementById("results").innerHTML = html;
+}
+ 
+function card(s) {
+  const badge = s.status === true ? '<span class="badge open">Ouvert</span>'
+    : s.status === false ? '<span class="badge closed">Fermé</span>'
+    : '<span class="badge unknown">?</span>';
+  const gmaps = `https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lon}`;
+  const hoursLine = s.hours && s.status === null ? `<div class="hours-raw">${esc(s.hours)}</div>` : "";
+  return `<div class="card">
+    <div class="info">
+      <div class="name">${esc(s.name)}</div>
+      <div class="meta">${esc(s.type)} · ${formatDist(s.dist)}</div>
+      ${hoursLine}
+    </div>
+    ${badge}
+    <a href="${gmaps}" target="_blank" title="Itinéraire">🗺️</a>
+  </div>`;
+}
+ 
+// ---- Parsing simplifié des horaires OpenStreetMap ----
+// Gère : "24/7", "Mo-Fr 08:00-19:00", "Mo-Sa 09:00-12:00,14:00-19:00; Su off", etc.
+// Retourne true (ouvert), false (fermé) ou null (format non reconnu).
+function isOpenNow(str, now) {
+  try {
+    if (/24\s*\/\s*7/.test(str)) return true;
+    const day = now.getDay();
+    const minutes = now.getHours() * 60 + now.getMinutes();
+    const rules = str.split(";").map(r => r.trim()).filter(Boolean);
+    let result = false;
+    let matchedAny = false;
+ 
+    for (const rule of rules) {
+      if (/^PH\b/i.test(rule)) continue; // jours fériés : ignoré
+      const m = rule.match(/^((?:(?:Mo|Tu|We|Th|Fr|Sa|Su)(?:-(?:Mo|Tu|We|Th|Fr|Sa|Su))?,?\s*)+)?\s*(.*)$/);
+      if (!m) return null;
+      const dayPart = m[1] ? m[1].trim() : null;
+      const timePart = m[2].trim();
+ 
+      const daysApply = dayPart ? expandDays(dayPart) : [0,1,2,3,4,5,6];
+      if (daysApply === null) return null;
+      if (!daysApply.includes(day)) continue;
+      matchedAny = true;
+ 
+      if (/^(off|closed)$/i.test(timePart)) { result = false; continue; }
+      const ranges = timePart.split(",").map(t => t.trim());
+      let openNow = false;
+      for (const r of ranges) {
+        const tm = r.match(/^(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})$/);
+        if (!tm) return null;
+        let start = +tm[1] * 60 + +tm[2];
+        let end = +tm[3] * 60 + +tm[4];
+        if (end <= start) end += 24 * 60; // horaire de nuit (ex: 22:00-02:00)
+        const mins = minutes < start && end > 24 * 60 ? minutes + 24 * 60 : minutes;
+        if (mins >= start && mins < end) openNow = true;
+      }
+      result = openNow;
+    }
+    return matchedAny ? result : false;
+  } catch { return null; }
+}
+ 
+function expandDays(part) {
+  const days = [];
+  for (const token of part.split(",").map(t => t.trim()).filter(Boolean)) {
+    const range = token.match(/^(Mo|Tu|We|Th|Fr|Sa|Su)(?:-(Mo|Tu|We|Th|Fr|Sa|Su))?$/);
+    if (!range) return null;
+    const start = DAYS[range[1]];
+    const end = range[2] ? DAYS[range[2]] : start;
+    let d = start;
+    while (true) {
+      days.push(d);
+      if (d === end) break;
+      d = (d + 1) % 7;
+    }
+  }
+  return days;
+}
+ 
+function distance(lat1, lon1, lat2, lon2) {
+  const R = 6371000, rad = x => x * Math.PI / 180;
+  const dLat = rad(lat2 - lat1), dLon = rad(lon2 - lon1);
+  const a = Math.sin(dLat/2)**2 + Math.cos(rad(lat1)) * Math.cos(rad(lat2)) * Math.sin(dLon/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+ 
+function formatDist(m) {
+  return m < 1000 ? Math.round(m) + " m" : (m / 1000).toFixed(1) + " km";
+}
+ 
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+}
+</script>
+</body>
+</html>
+ 
+
