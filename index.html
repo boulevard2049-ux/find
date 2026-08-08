@@ -1,244 +1,541 @@
-
-Index · HTML
 <!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="Magasins">
-<title>Magasins ouverts près de moi</title>
+<meta name="apple-mobile-web-app-title" content="Autour de moi">
+<title>Autour de moi</title>
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    background: #f4f5f7; color: #1a1a2e; min-height: 100vh;
+    background: #f2f3f7; color: #14142b;
+    padding-bottom: env(safe-area-inset-bottom);
   }
-  .container { max-width: 640px; margin: 0 auto; padding: 24px 16px; }
-  h1 { font-size: 1.5rem; margin-bottom: 4px; }
-  .subtitle { color: #666; font-size: 0.9rem; margin-bottom: 20px; }
-  .controls { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
-  select, button {
-    padding: 12px 16px; border-radius: 12px; border: 1px solid #ddd;
-    font-size: 1rem; background: #fff; cursor: pointer;
+  .wrap { max-width: 680px; margin: 0 auto; padding: 20px 14px 40px; }
+
+  header { margin-bottom: 16px; }
+  h1 { font-size: 1.45rem; letter-spacing: -0.02em; }
+  .sub { color: #7a7a8c; font-size: 0.85rem; margin-top: 2px; }
+
+  .bar { display: flex; gap: 8px; margin-bottom: 14px; }
+  select, .btn {
+    font: inherit; font-size: 0.95rem; padding: 11px 14px;
+    border-radius: 12px; border: 1px solid #e0e0e8; background: #fff; color: inherit;
+    cursor: pointer; -webkit-appearance: none; appearance: none;
   }
-  button.primary {
-    background: #2563eb; color: #fff; border: none; font-weight: 600; flex: 1;
+  select { padding-right: 32px; background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'><path d='M2 4l4 4 4-4' fill='none' stroke='%23888' stroke-width='1.6' stroke-linecap='round'/></svg>"); background-repeat: no-repeat; background-position: right 12px center; }
+  .btn.primary { flex: 1; background: #2563eb; color: #fff; border: none; font-weight: 600; }
+  .btn.primary:active { background: #1d4ed8; }
+  .btn.primary:disabled { background: #a8c0f2; }
+
+  /* Filtres de catégorie */
+  .filters { display: flex; gap: 7px; overflow-x: auto; padding-bottom: 10px; margin-bottom: 6px; scrollbar-width: none; }
+  .filters::-webkit-scrollbar { display: none; }
+  .chip {
+    flex: 0 0 auto; font-size: 0.85rem; font-weight: 600; padding: 8px 13px;
+    border-radius: 999px; border: 1px solid #e0e0e8; background: #fff; color: #46465c;
+    cursor: pointer; white-space: nowrap;
   }
-  button.primary:active { background: #1d4ed8; }
-  button.primary:disabled { background: #93b4f5; cursor: wait; }
-  .status-msg { text-align: center; color: #666; padding: 20px; }
+  .chip.active { background: #14142b; color: #fff; border-color: #14142b; }
+  .chip .n { opacity: 0.55; font-weight: 500; margin-left: 3px; }
+
+  .toggle-row { display: flex; align-items: center; gap: 16px; margin: 4px 0 14px; font-size: 0.85rem; color: #7a7a8c; }
+  .toggle-row label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+  .toggle-row input { width: 17px; height: 17px; accent-color: #2563eb; }
+
+  .gps-warn { font-size: 0.78rem; color: #92400e; background: #fef3c7;
+              padding: 8px 11px; border-radius: 9px; margin-bottom: 12px; line-height: 1.35; }
+
+  .msg { text-align: center; color: #7a7a8c; padding: 34px 16px; font-size: 0.92rem; line-height: 1.5; }
+  .spinner {
+    width: 22px; height: 22px; border: 2.5px solid #dcdce6; border-top-color: #2563eb;
+    border-radius: 50%; margin: 0 auto 12px; animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .group-title { font-size: 0.72rem; font-weight: 700; color: #9a9aae; letter-spacing: 0.06em; text-transform: uppercase; margin: 20px 0 8px; }
+  .group-title:first-child { margin-top: 4px; }
+
   .card {
-    background: #fff; border-radius: 14px; padding: 14px 16px; margin-bottom: 10px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.06); display: flex; align-items: center; gap: 12px;
+    background: #fff; border-radius: 14px; padding: 13px 15px; margin-bottom: 8px;
+    display: flex; align-items: center; gap: 12px; box-shadow: 0 1px 2px rgba(20,20,43,0.06);
   }
-  .card .info { flex: 1; min-width: 0; }
-  .card .name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .card .meta { font-size: 0.82rem; color: #777; margin-top: 2px; }
-  .badge {
-    font-size: 0.78rem; font-weight: 700; padding: 4px 10px; border-radius: 999px; white-space: nowrap;
-  }
-  .badge.open { background: #dcfce7; color: #15803d; }
+  .icon { font-size: 1.35rem; flex: 0 0 auto; }
+  .info { flex: 1; min-width: 0; }
+  .name { font-weight: 600; font-size: 0.97rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .meta { font-size: 0.8rem; color: #8a8a9c; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .addr { font-size: 0.79rem; color: #5b5b73; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .addr.muted { color: #b4b4c4; font-style: italic; }
+  .also { font-size: 0.75rem; color: #2563eb; background: #eef3ff; display: inline-block;
+          padding: 2px 8px; border-radius: 6px; margin-top: 5px; max-width: 100%;
+          white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .badge { font-size: 0.74rem; font-weight: 700; padding: 4px 9px; border-radius: 999px; white-space: nowrap; }
+  .badge.open { background: #dcfce7; color: #166534; }
   .badge.closed { background: #fee2e2; color: #b91c1c; }
-  .badge.unknown { background: #f3f4f6; color: #6b7280; }
-  .card a { text-decoration: none; font-size: 1.2rem; }
-  .section-title { font-size: 0.85rem; font-weight: 700; color: #888; text-transform: uppercase; margin: 18px 0 8px; }
-  .hours-raw { font-size: 0.75rem; color: #999; margin-top: 2px; }
+  .badge.unknown { background: #f1f1f5; color: #8a8a9c; }
+  .go { text-decoration: none; font-size: 1.15rem; opacity: 0.5; padding: 4px; }
 </style>
 </head>
 <body>
-<div class="container">
-  <h1>🛍️ Magasins ouverts près de moi</h1>
-  <p class="subtitle">Données OpenStreetMap · statut calculé en temps réel</p>
- 
-  <div class="controls">
-    <select id="radius">
-      <option value="500">500 m</option>
-      <option value="1000" selected>1 km</option>
-      <option value="2000">2 km</option>
-      <option value="5000">5 km</option>
+<div class="wrap">
+  <header>
+    <h1>Autour de moi</h1>
+    <p class="sub">Commerces et restos ouverts en ce moment</p>
+  </header>
+
+  <div class="bar">
+    <select id="radius" onchange="search()">
+      <option value="3">3 min à pied</option>
+      <option value="5">5 min à pied</option>
+      <option value="10" selected>10 min à pied</option>
+      <option value="15">15 min à pied</option>
+      <option value="20">20 min à pied</option>
+      <option value="30">30 min à pied</option>
     </select>
-    <button class="primary" id="searchBtn" onclick="search()">📍 Chercher autour de moi</button>
+    <button class="btn primary" id="searchBtn" onclick="search(true)">Actualiser</button>
   </div>
- 
-  <div id="results"><p class="status-msg">Clique sur le bouton pour lancer la recherche.</p></div>
+
+  <div class="filters" id="filters"></div>
+  <div class="toggle-row" id="toggleRow" style="display:none">
+    <label><input type="checkbox" id="onlyOpen" onchange="paint()"> Ouvert actuellement</label>
+  </div>
+  <p class="gps-warn" id="gpsWarn" style="display:none"></p>
+
+  <div id="results"><div class="msg"><div class="spinner"></div>Localisation…</div></div>
 </div>
- 
+
 <script>
-const DAYS = { Su: 0, Mo: 1, Tu: 2, We: 3, Th: 4, Fr: 5, Sa: 6 };
-const SHOP_LABELS = {
-  supermarket: "Supermarché", convenience: "Épicerie", bakery: "Boulangerie",
-  butcher: "Boucherie", clothes: "Vêtements", pharmacy: "Pharmacie",
-  hairdresser: "Coiffeur", florist: "Fleuriste", greengrocer: "Primeur",
-  electronics: "Électronique", shoes: "Chaussures", books: "Librairie",
-  tobacco: "Tabac", alcohol: "Caviste", pet: "Animalerie", kiosk: "Kiosque",
-  chemist: "Droguerie/Parapharmacie", mobile_phone: "Téléphonie", jewelry: "Bijouterie",
-  furniture: "Meubles", sports: "Sport", toys: "Jouets", optician: "Opticien",
-  hardware: "Bricolage", doityourself: "Bricolage", deli: "Traiteur", mall: "Centre commercial"
+/* ===================== CONFIGURATION DES CATÉGORIES ===================== */
+/* Chaque catégorie regroupe des types OpenStreetMap sous un même filtre.   */
+/* Un lieu peut appartenir à PLUSIEURS catégories : un bar qui sert à manger
+   apparaît à la fois dans "Boire un verre" et dans "Manger". */
+const CATEGORIES = [
+  { id: "food",     label: "Manger",       icon: "🍽️", amenity: ["restaurant","fast_food","cafe","ice_cream"], shop: ["bakery","deli","pastry","confectionery"],
+    alsoFrom: ["drink"], also: (t) => servesFood(t) },
+  { id: "drink",    label: "Boire un verre", icon: "🍺", amenity: ["bar","pub","biergarten","nightclub","cafe"] },
+  { id: "grocery",  label: "Courses",      icon: "🛒", shop: ["supermarket","convenience","greengrocer","butcher","cheese","seafood","alcohol","beverages","wine","frozen_food","organic","farm"] },
+  { id: "health",   label: "Santé",        icon: "💊", amenity: ["pharmacy","doctors","dentist","veterinary"], shop: ["chemist","optician","hearing_aids","medical_supply"] },
+  { id: "pressing", label: "Pressing",     icon: "👔", shop: ["dry_cleaning"],
+    alsoFrom: ["laverie","tailor"], also: (t, n) => t.dry_cleaning === "yes" || /pressing|teinturerie|nettoyage à sec|blanchisserie/i.test(n) },
+  { id: "laverie",  label: "Laverie",      icon: "🧺", shop: ["laundry"],
+    alsoFrom: ["pressing"], also: (t, n) => t.self_service === "yes" || t.laundry_service === "yes" || /laverie|lavomatic|laundromat|launderette|lav'|wash/i.test(n) },
+  { id: "tailor",   label: "Tailleur",     icon: "🧵", shop: ["tailor","sewing"], craft: ["tailor","dressmaker","seamstress"],
+    alsoFrom: ["pressing","laverie"], also: (t, n) => t.tailor === "yes" || t.craft === "tailor" || /retouche|couture|tailleur|coutur/i.test(n) },
+  { id: "services", label: "Services",     icon: "✂️", amenity: ["bank","post_office","fuel","car_wash"], shop: ["hairdresser","beauty","tattoo","travel_agency","copyshop","funeral_directors","estate_agent","shoe_repair","locksmith"] },
+  { id: "shopping", label: "Boutiques",    icon: "👕", shop: ["clothes","shoes","jewelry","bag","boutique","fabric","watches","fashion_accessories","second_hand","charity"] },
+  { id: "tech",     label: "Tech",         icon: "📱", shop: ["electronics","mobile_phone","computer","video_games","hifi","photo"] },
+  { id: "home",     label: "Maison",       icon: "🔧", shop: ["hardware","doityourself","furniture","garden_centre","florist","houseware","paint","electrical","trade"] },
+  { id: "leisure",  label: "Loisirs",      icon: "📚", shop: ["books","sports","toys","music","musical_instrument","bicycle","pet","art","stationery","newsagent","gift","kiosk","tobacco"] }
+];
+
+/* Libellés lisibles pour les types les plus courants */
+const LABELS = {
+  restaurant:"Restaurant", fast_food:"Fast-food", cafe:"Café", bar:"Bar", pub:"Pub", ice_cream:"Glacier",
+  biergarten:"Bière en plein air", nightclub:"Boîte de nuit",
+  bakery:"Boulangerie", pastry:"Pâtisserie", deli:"Traiteur", confectionery:"Confiserie",
+  supermarket:"Supermarché", convenience:"Épicerie", greengrocer:"Primeur", butcher:"Boucherie",
+  cheese:"Fromagerie", seafood:"Poissonnerie", alcohol:"Caviste", beverages:"Boissons", wine:"Caviste",
+  frozen_food:"Surgelés", organic:"Bio", farm:"Producteur",
+  pharmacy:"Pharmacie", doctors:"Cabinet médical", dentist:"Dentiste", veterinary:"Vétérinaire",
+  chemist:"Parapharmacie", optician:"Opticien", hearing_aids:"Audioprothésiste", medical_supply:"Matériel médical",
+  bank:"Banque", post_office:"Poste", fuel:"Station-service", car_wash:"Lavage auto",
+  hairdresser:"Coiffeur", laundry:"Laverie", dry_cleaning:"Pressing", beauty:"Institut de beauté",
+  self_service_laundry:"Laverie automatique",
+  tattoo:"Tatouage", travel_agency:"Agence de voyage", copyshop:"Reprographie",
+  funeral_directors:"Pompes funèbres", estate_agent:"Agence immobilière",
+  shoe_repair:"Cordonnerie", locksmith:"Serrurerie",
+  tailor:"Tailleur / Retouches", sewing:"Mercerie", dressmaker:"Couturière", seamstress:"Couturière",
+  clothes:"Vêtements", shoes:"Chaussures", jewelry:"Bijouterie", bag:"Maroquinerie", boutique:"Boutique",
+  fabric:"Tissus", watches:"Horlogerie", fashion_accessories:"Accessoires", second_hand:"Occasion", charity:"Friperie solidaire",
+  electronics:"Électronique", mobile_phone:"Téléphonie", computer:"Informatique", video_games:"Jeux vidéo",
+  hifi:"Hi-fi", photo:"Photo",
+  hardware:"Quincaillerie", doityourself:"Bricolage", furniture:"Meubles", garden_centre:"Jardinerie",
+  florist:"Fleuriste", houseware:"Arts de la table", paint:"Peinture", electrical:"Électricité", trade:"Matériaux",
+  books:"Librairie", sports:"Sport", toys:"Jouets", music:"Disquaire", musical_instrument:"Instruments",
+  bicycle:"Vélo", pet:"Animalerie", art:"Galerie", stationery:"Papeterie", newsagent:"Presse",
+  gift:"Cadeaux", kiosk:"Kiosque", tobacco:"Tabac", mall:"Centre commercial", hardware_store:"Bricolage"
 };
- 
-function search() {
+
+const DAYS = { Su:0, Mo:1, Tu:2, We:3, Th:4, Fr:5, Sa:6 };
+
+let allPlaces = [];       // tous les résultats de la dernière recherche
+let activeCat = "all";    // catégorie sélectionnée
+let gpsAccuracy = null;   // marge d'erreur de la position, en mètres
+let cache = {};           // dernière réponse du serveur, réutilisée entre les distances
+
+/* ===================== ACCÈS AU SERVEUR OVERPASS ===================== */
+/* Overpass est un service public gratuit : il limite le nombre de requêtes
+   par utilisateur. On essaie donc plusieurs serveurs miroirs à la suite,
+   avec un délai d'attente et un réessai. */
+const OVERPASS_SERVERS = [
+  "https://overpass-api.de/api/interpreter",
+  "https://overpass.kumi.systems/api/interpreter",
+  "https://overpass.private.coffee/api/interpreter"
+];
+const BASE_MINUTES = 10;      // périmètre minimum téléchargé (couvre 3, 5 et 10 min)
+const CACHE_MS = 5 * 60 * 1000; // au-delà, on redemande pour que les horaires restent justes
+
+async function overpass(query, results) {
+  let lastError = null;
+
+  for (let i = 0; i < OVERPASS_SERVERS.length; i++) {
+    if (i > 0 && results) {
+      results.innerHTML = '<div class="msg"><div class="spinner"></div>Serveur occupé, essai n°' + (i + 1) + '…</div>';
+      await sleep(700);
+    }
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 30000);
+      const resp = await fetch(OVERPASS_SERVERS[i], {
+        method: "POST",
+        body: "data=" + encodeURIComponent(query),
+        signal: ctrl.signal
+      });
+      clearTimeout(timer);
+
+      if (resp.status === 429 || resp.status === 504) { lastError = new Error("busy"); continue; }
+      if (!resp.ok) { lastError = new Error("http " + resp.status); continue; }
+
+      const text = await resp.text();
+      if (!text.trim().startsWith("{")) { lastError = new Error("busy"); continue; }
+      return JSON.parse(text);
+    } catch (e) {
+      lastError = e.name === "AbortError" ? new Error("timeout") : e;
+    }
+  }
+  throw lastError || new Error("unknown");
+}
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+function errorText(e) {
+  const m = String(e && e.message);
+  if (m === "busy")    return "Les serveurs OpenStreetMap sont saturés.<br>Attends une minute et réappuie sur Actualiser.";
+  if (m === "timeout") return "La recherche a été trop longue.<br>Réessaie, ou choisis un périmètre plus court.";
+  return "Pas de connexion au serveur de données.<br>Vérifie ta connexion internet et réessaie.";
+}
+
+/* ===================== RECHERCHE ===================== */
+function search(force) {
   const btn = document.getElementById("searchBtn");
   const results = document.getElementById("results");
   btn.disabled = true;
-  results.innerHTML = '<p class="status-msg">📡 Localisation en cours…</p>';
- 
+  document.getElementById("filters").innerHTML = "";
+  document.getElementById("toggleRow").style.display = "none";
+  results.innerHTML = '<div class="msg"><div class="spinner"></div>Localisation…</div>';
+
+  if (!navigator.geolocation) {
+    results.innerHTML = '<div class="msg">Ton navigateur ne gère pas la géolocalisation.</div>';
+    btn.disabled = false;
+    return;
+  }
+
   navigator.geolocation.getCurrentPosition(async pos => {
     const { latitude: lat, longitude: lon } = pos.coords;
-    const radius = document.getElementById("radius").value;
-    results.innerHTML = '<p class="status-msg">🔎 Recherche des magasins…</p>';
- 
+    const minutes = +document.getElementById("radius").value;
+    const radius = radiusForMinutes(minutes);
+    gpsAccuracy = pos.coords.accuracy;
+
+    // Si on a déjà les données d'un périmètre plus large au même endroit,
+    // on filtre localement : aucune requête réseau, résultat instantané.
+    if (!force && cache.places && radius <= cache.radius &&
+        Date.now() - cache.time < CACHE_MS &&
+        haversine(lat, lon, cache.lat, cache.lon) < 60) {
+      allPlaces = cache.places.filter(p => p.dist <= radius);
+      activeCat = "all";
+      paint();
+      btn.disabled = false;
+      return;
+    }
+
+    results.innerHTML = '<div class="msg"><div class="spinner"></div>Recherche des commerces…</div>';
+
+    // On interroge au minimum le périmètre 10 min : ainsi les choix 3, 5 et 10 min
+    // partagent une seule requête au lieu d'en déclencher une chacun.
+    const fetchRadius = Math.max(radius, radiusForMinutes(BASE_MINUTES));
     const query = `[out:json][timeout:25];
       (
-        nwr["shop"](around:${radius},${lat},${lon});
-        nwr["amenity"="pharmacy"](around:${radius},${lat},${lon});
+        nwr["shop"](around:${fetchRadius},${lat},${lon});
+        nwr["amenity"~"^(restaurant|fast_food|cafe|bar|pub|biergarten|nightclub|ice_cream|pharmacy|bank|post_office|fuel|doctors|dentist|veterinary|car_wash)$"](around:${fetchRadius},${lat},${lon});
+        nwr["craft"~"^(tailor|dressmaker|seamstress|shoemaker)$"](around:${fetchRadius},${lat},${lon});
       );
       out center tags;`;
- 
+
     try {
-      const resp = await fetch("https://overpass-api.de/api/interpreter", {
-        method: "POST",
-        body: "data=" + encodeURIComponent(query)
-      });
-      const data = await resp.json();
-      render(data.elements, lat, lon);
+      const data = await overpass(query, results);
+      const places = buildPlaces(data.elements, lat, lon);
+      cache = { lat, lon, radius: fetchRadius, places, time: Date.now() };
+      allPlaces = places.filter(p => p.dist <= radius);
+      activeCat = "all";
+      paint();
     } catch (e) {
-      results.innerHTML = '<p class="status-msg">❌ Erreur réseau. Réessaie dans quelques secondes.</p>';
+      results.innerHTML = '<div class="msg">' + errorText(e) + '</div>';
     } finally {
       btn.disabled = false;
     }
   }, err => {
-    results.innerHTML = '<p class="status-msg">❌ Impossible d\'obtenir ta position. Autorise la géolocalisation dans ton navigateur.</p>';
+    const txt = err.code === 1
+      ? "Géolocalisation refusée.<br>Autorise-la dans les réglages de Safari pour ce site."
+      : "Position introuvable. Réessaie en extérieur ou active le Wi-Fi.";
+    results.innerHTML = '<div class="msg">' + txt + '</div>';
     btn.disabled = false;
-  }, { enableHighAccuracy: true, timeout: 10000 });
+  }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }); // maximumAge:0 = position fraîche, jamais celle en cache
 }
- 
-function render(elements, myLat, myLon) {
+
+/* Transforme la réponse OSM en objets exploitables */
+function buildPlaces(elements, myLat, myLon) {
   const now = new Date();
-  const shops = elements
+  return elements
     .filter(el => el.tags && el.tags.name)
     .map(el => {
+      const t = el.tags;
+      const kind = t.shop || t.amenity || t.craft;
       const lat = el.lat ?? el.center?.lat;
       const lon = el.lon ?? el.center?.lon;
+      const cats = findCategories(t);
+      const main = CATEGORIES.find(c => c.id === cats[0]);
+
       return {
-        name: el.tags.name,
-        type: SHOP_LABELS[el.tags.shop] || el.tags.shop || "Pharmacie",
-        hours: el.tags.opening_hours || null,
-        dist: distance(myLat, myLon, lat, lon),
+        name: t.name,
+        kind,
+        typeLabel: LABELS[kind] || cap(String(kind).replace(/_/g, " ")),
+        cats,
+        icon: main ? main.icon : "🏬",
+        cuisine: t.cuisine ? cap(t.cuisine.split(";")[0].replace(/_/g, " ")) : null,
+        terrace: t.outdoor_seating === "yes",
+        selfService: t.self_service === "yes",
+        address: formatAddress(t),
+        dist: haversine(myLat, myLon, lat, lon),
         lat, lon,
-        status: el.tags.opening_hours ? isOpenNow(el.tags.opening_hours, now) : null
+        status: t.opening_hours ? isOpenNow(t.opening_hours, now) : null
       };
     })
     .sort((a, b) => a.dist - b.dist);
- 
-  const open = shops.filter(s => s.status === true);
-  const closed = shops.filter(s => s.status === false);
-  const unknown = shops.filter(s => s.status === null);
- 
-  let html = "";
-  if (!shops.length) {
-    html = '<p class="status-msg">Aucun magasin trouvé dans ce rayon. Essaie un rayon plus grand.</p>';
-  } else {
-    if (open.length) html += `<p class="section-title">✅ Ouverts maintenant (${open.length})</p>` + open.map(card).join("");
-    if (closed.length) html += `<p class="section-title">🔴 Fermés (${closed.length})</p>` + closed.map(card).join("");
-    if (unknown.length) html += `<p class="section-title">❓ Horaires inconnus (${unknown.length})</p>` + unknown.map(card).join("");
-  }
-  document.getElementById("results").innerHTML = html;
 }
- 
-function card(s) {
-  const badge = s.status === true ? '<span class="badge open">Ouvert</span>'
-    : s.status === false ? '<span class="badge closed">Fermé</span>'
-    : '<span class="badge unknown">?</span>';
-  const gmaps = `https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lon}`;
-  const hoursLine = s.hours && s.status === null ? `<div class="hours-raw">${esc(s.hours)}</div>` : "";
+
+/* ===================== CATÉGORISATION ===================== */
+/* Un lieu peut appartenir à plusieurs catégories.
+   1) correspondance directe sur le type OSM (shop / amenity / craft)
+   2) règle "also" : un lieu déjà classé dans une catégorie de `alsoFrom`
+      rejoint aussi cette catégorie si la condition est remplie.
+      Ex. un bar avec une cuisine -> aussi "Manger"
+          un pressing qui fait des retouches -> aussi "Tailleur" */
+function findCategories(t) {
+  const name = t.name || "";
+  const cats = CATEGORIES.filter(c =>
+    (c.shop    && t.shop    && c.shop.includes(t.shop)) ||
+    (c.amenity && t.amenity && c.amenity.includes(t.amenity)) ||
+    (c.craft   && t.craft   && c.craft.includes(t.craft))
+  ).map(c => c.id);
+
+  // Deux passes : une promotion peut en déclencher une autre
+  for (let pass = 0; pass < 2; pass++) {
+    for (const c of CATEGORIES) {
+      if (!c.also || cats.includes(c.id)) continue;
+      if (c.alsoFrom && !c.alsoFrom.some(id => cats.includes(id))) continue;
+      if (c.also(t, name)) cats.push(c.id);
+    }
+  }
+
+  return cats.length ? cats : ["other"];
+}
+
+/* Libellé lisible d'une catégorie */
+function catLabel(id) {
+  const c = CATEGORIES.find(x => x.id === id);
+  return c ? c.label : "Autres";
+}
+
+/* ===================== ADRESSE ===================== */
+/* Reconstruit "12 rue de Rivoli · 4e" (Paris) ou "12 rue Victor Hugo · Lyon" ailleurs. */
+function formatAddress(t) {
+  const line = [t["addr:housenumber"], t["addr:street"]].filter(Boolean).join(" ");
+  const zone = arrondissement(t["addr:postcode"]) || t["addr:city"] || null;
+  if (line && zone) return line + " · " + zone;
+  return line || zone || null;
+}
+
+/* Arrondissement pour Paris / Lyon / Marseille : 75011 -> "11e", 69003 -> "3e" */
+function arrondissement(postcode) {
+  if (!postcode) return null;
+  const pc = postcode.trim();
+  let n = null;
+  if (/^75\d{3}$/.test(pc)) n = parseInt(pc.slice(3), 10);        // Paris  75001-75020
+  else if (/^690(0[1-9])$/.test(pc)) n = parseInt(pc.slice(3), 10); // Lyon   69001-69009
+  else if (/^130(0[1-9]|1[0-6])$/.test(pc)) n = parseInt(pc.slice(3), 10); // Marseille 13001-13016
+  if (!n || n < 1 || n > 20) return null;
+  return n === 1 ? "1er" : n + "e";
+}
+
+/* Un établissement sert-il à manger ? (tags OSM) */
+function servesFood(t) {
+  if (t.food === "no") return false;
+  return t.food === "yes" || !!t.cuisine || t["diet:vegetarian"] !== undefined ||
+         t.amenity === "pub" || t.amenity === "biergarten";
+}
+
+/* ===================== AFFICHAGE ===================== */
+function paint() {
+  const results = document.getElementById("results");
+
+  if (!allPlaces.length) {
+    results.innerHTML = '<div class="msg">Rien trouvé dans ce périmètre.<br>Essaie un temps de marche plus long.</div>';
+    return;
+  }
+
+  // Barre de filtres : uniquement les catégories réellement présentes
+  const counts = {};
+  allPlaces.forEach(p => p.cats.forEach(c => counts[c] = (counts[c] || 0) + 1));
+  const chips = [{ id: "all", label: "Tout", icon: "", n: allPlaces.length }]
+    .concat(CATEGORIES.filter(c => counts[c.id]).map(c => ({ id: c.id, label: c.label, icon: c.icon, n: counts[c.id] })));
+  if (counts.other) chips.push({ id: "other", label: "Autres", icon: "🏬", n: counts.other });
+
+  document.getElementById("filters").innerHTML = chips.map(c =>
+    `<button class="chip${c.id === activeCat ? " active" : ""}" onclick="setCat('${c.id}')">${c.icon} ${c.label}<span class="n">${c.n}</span></button>`
+  ).join("");
+  document.getElementById("toggleRow").style.display = "flex";
+
+  // Avertissement si le GPS est imprécis (intérieur, métro, immeubles hauts)
+  const warn = document.getElementById("gpsWarn");
+  if (gpsAccuracy && gpsAccuracy > 100) {
+    warn.textContent = "⚠︎ Position imprécise à ± " + Math.round(gpsAccuracy) + " m : les temps de marche peuvent être faux.";
+    warn.style.display = "block";
+  } else {
+    warn.style.display = "none";
+  }
+
+  // Application des filtres
+  let list = activeCat === "all" ? allPlaces : allPlaces.filter(p => p.cats.includes(activeCat));
+  if (document.getElementById("onlyOpen").checked) list = list.filter(p => p.status === true);
+
+  if (!list.length) {
+    results.innerHTML = '<div class="msg">Aucun résultat avec ces filtres.</div>';
+    return;
+  }
+
+  const open = list.filter(p => p.status === true);
+  const closed = list.filter(p => p.status === false);
+  const unknown = list.filter(p => p.status === null);
+
+  let html = "";
+  if (open.length)    html += `<p class="group-title">Ouvert maintenant · ${open.length}</p>`    + open.map(card).join("");
+  if (closed.length)  html += `<p class="group-title">Fermé · ${closed.length}</p>`              + closed.map(card).join("");
+  if (unknown.length) html += `<p class="group-title">Horaires inconnus · ${unknown.length}</p>` + unknown.map(card).join("");
+  results.innerHTML = html;
+}
+
+function setCat(id) {
+  activeCat = id;
+  paint();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function card(p) {
+  const badge = p.status === true  ? '<span class="badge open">Ouvert</span>'
+              : p.status === false ? '<span class="badge closed">Fermé</span>'
+              : '<span class="badge unknown">?</span>';
+  const meta = [p.typeLabel, p.cuisine, p.terrace ? "Terrasse" : null,
+                p.selfService ? "Libre-service" : null, fmtDist(p.dist)].filter(Boolean).join(" · ");
+  const addr = p.address
+    ? `<div class="addr">📍 ${esc(p.address)}</div>`
+    : `<div class="addr muted">Adresse non renseignée</div>`;
+
+  // Doublons : les autres catégories auxquelles ce lieu appartient
+  const ref = activeCat === "all" ? p.cats[0] : activeCat;
+  const others = p.cats.filter(c => c !== ref).map(catLabel);
+  const also = others.length
+    ? `<div class="also">↔ Apparaît également dans ${esc(others.join(", "))}</div>`
+    : "";
+  const gmaps = `https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lon}`;
   return `<div class="card">
+    <span class="icon">${p.icon}</span>
     <div class="info">
-      <div class="name">${esc(s.name)}</div>
-      <div class="meta">${esc(s.type)} · ${formatDist(s.dist)}</div>
-      ${hoursLine}
+      <div class="name">${esc(p.name)}</div>
+      <div class="meta">${esc(meta)}</div>
+      ${addr}
+      ${also}
     </div>
     ${badge}
-    <a href="${gmaps}" target="_blank" title="Itinéraire">🗺️</a>
+    <a class="go" href="${gmaps}" target="_blank" rel="noopener" aria-label="Itinéraire">↗</a>
   </div>`;
 }
- 
-// ---- Parsing simplifié des horaires OpenStreetMap ----
-// Gère : "24/7", "Mo-Fr 08:00-19:00", "Mo-Sa 09:00-12:00,14:00-19:00; Su off", etc.
-// Retourne true (ouvert), false (fermé) ou null (format non reconnu).
+
+/* ===================== HORAIRES OSM ===================== */
+/* Gère 24/7, "Mo-Fr 08:00-19:00", plages multiples, "Su off", horaires de nuit.
+   Renvoie true / false / null (format non reconnu). */
 function isOpenNow(str, now) {
   try {
     if (/24\s*\/\s*7/.test(str)) return true;
     const day = now.getDay();
     const minutes = now.getHours() * 60 + now.getMinutes();
-    const rules = str.split(";").map(r => r.trim()).filter(Boolean);
-    let result = false;
-    let matchedAny = false;
- 
-    for (const rule of rules) {
-      if (/^PH\b/i.test(rule)) continue; // jours fériés : ignoré
+    let result = false, matched = false;
+
+    for (const rule of str.split(";").map(r => r.trim()).filter(Boolean)) {
+      if (/^PH\b/i.test(rule)) continue;
       const m = rule.match(/^((?:(?:Mo|Tu|We|Th|Fr|Sa|Su)(?:-(?:Mo|Tu|We|Th|Fr|Sa|Su))?,?\s*)+)?\s*(.*)$/);
       if (!m) return null;
-      const dayPart = m[1] ? m[1].trim() : null;
+      const days = m[1] ? expandDays(m[1].trim()) : [0,1,2,3,4,5,6];
+      if (days === null) return null;
+      if (!days.includes(day)) continue;
+      matched = true;
+
       const timePart = m[2].trim();
- 
-      const daysApply = dayPart ? expandDays(dayPart) : [0,1,2,3,4,5,6];
-      if (daysApply === null) return null;
-      if (!daysApply.includes(day)) continue;
-      matchedAny = true;
- 
       if (/^(off|closed)$/i.test(timePart)) { result = false; continue; }
-      const ranges = timePart.split(",").map(t => t.trim());
+
       let openNow = false;
-      for (const r of ranges) {
+      for (const r of timePart.split(",").map(s => s.trim())) {
         const tm = r.match(/^(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})$/);
         if (!tm) return null;
-        let start = +tm[1] * 60 + +tm[2];
+        const start = +tm[1] * 60 + +tm[2];
         let end = +tm[3] * 60 + +tm[4];
-        if (end <= start) end += 24 * 60; // horaire de nuit (ex: 22:00-02:00)
-        const mins = minutes < start && end > 24 * 60 ? minutes + 24 * 60 : minutes;
+        if (end <= start) end += 1440;
+        const mins = (minutes < start && end > 1440) ? minutes + 1440 : minutes;
         if (mins >= start && mins < end) openNow = true;
       }
       result = openNow;
     }
-    return matchedAny ? result : false;
+    return matched ? result : false;
   } catch { return null; }
 }
- 
+
 function expandDays(part) {
-  const days = [];
+  const out = [];
   for (const token of part.split(",").map(t => t.trim()).filter(Boolean)) {
-    const range = token.match(/^(Mo|Tu|We|Th|Fr|Sa|Su)(?:-(Mo|Tu|We|Th|Fr|Sa|Su))?$/);
-    if (!range) return null;
-    const start = DAYS[range[1]];
-    const end = range[2] ? DAYS[range[2]] : start;
+    const r = token.match(/^(Mo|Tu|We|Th|Fr|Sa|Su)(?:-(Mo|Tu|We|Th|Fr|Sa|Su))?$/);
+    if (!r) return null;
+    const start = DAYS[r[1]], end = r[2] ? DAYS[r[2]] : DAYS[r[1]];
     let d = start;
-    while (true) {
-      days.push(d);
-      if (d === end) break;
-      d = (d + 1) % 7;
-    }
+    while (true) { out.push(d); if (d === end) break; d = (d + 1) % 7; }
   }
-  return days;
+  return out;
 }
- 
-function distance(lat1, lon1, lat2, lon2) {
+
+/* ===================== UTILITAIRES ===================== */
+function haversine(lat1, lon1, lat2, lon2) {
   const R = 6371000, rad = x => x * Math.PI / 180;
   const dLat = rad(lat2 - lat1), dLon = rad(lon2 - lon1);
   const a = Math.sin(dLat/2)**2 + Math.cos(rad(lat1)) * Math.cos(rad(lat2)) * Math.sin(dLon/2)**2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
- 
-function formatDist(m) {
-  return m < 1000 ? Math.round(m) + " m" : (m / 1000).toFixed(1) + " km";
-}
- 
-function esc(s) {
-  return String(s).replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
-}
+/* Temps de marche estimé.
+   - vitesse : 80 m/min (≈ 4,8 km/h, le rythme utilisé par les calculateurs d'itinéraire)
+   - détour  : ×1,3 car on mesure à vol d'oiseau alors qu'on marche par les rues
+   L'estimation reste approximative : sans calcul d'itinéraire réel, un obstacle
+   (voie ferrée, fleuve, grand îlot) peut allonger nettement le trajet. */
+const WALK_M_PER_MIN = 80;
+const DETOUR_FACTOR = 1.3;
+const walkMinutes = m => Math.max(1, Math.round(m * DETOUR_FACTOR / WALK_M_PER_MIN));
+const fmtDist = m => walkMinutes(m) + " min à pied";
+/* Rayon de recherche (à vol d'oiseau) correspondant à un temps de marche */
+const radiusForMinutes = min => Math.round(min * WALK_M_PER_MIN / DETOUR_FACTOR);
+const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+
+/* Lancement automatique à l'ouverture */
+window.addEventListener("load", search);
 </script>
 </body>
 </html>
- 
-
