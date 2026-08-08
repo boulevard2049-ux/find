@@ -170,12 +170,13 @@ let cache = {};           // dernière réponse du serveur, réutilisée entre l
 /* Overpass est un service public gratuit : il limite le nombre de requêtes
    par utilisateur. On essaie donc plusieurs serveurs miroirs à la suite,
    avec un délai d'attente et un réessai. */
+/* kumi.systems est plus rapide et plus tolérant que le serveur principal :
+   on l'interroge en premier, l'autre ne sert que de secours. */
 const OVERPASS_SERVERS = [
-  "https://overpass-api.de/api/interpreter",
   "https://overpass.kumi.systems/api/interpreter",
-  "https://overpass.private.coffee/api/interpreter"
+  "https://overpass-api.de/api/interpreter"
 ];
-const BASE_MINUTES = 10;      // périmètre minimum téléchargé (couvre 3, 5 et 10 min)
+const SERVER_TIMEOUT = 10000;   // 10 s par serveur : au-delà on bascule
 const CACHE_MS = 5 * 60 * 1000; // au-delà, on redemande pour que les horaires restent justes
 
 async function overpass(query, results) {
@@ -184,11 +185,10 @@ async function overpass(query, results) {
   for (let i = 0; i < OVERPASS_SERVERS.length; i++) {
     if (i > 0 && results) {
       results.innerHTML = '<div class="msg"><div class="spinner"></div>Serveur occupé, essai n°' + (i + 1) + '…</div>';
-      await sleep(700);
     }
     try {
       const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 30000);
+      const timer = setTimeout(() => ctrl.abort(), SERVER_TIMEOUT);
       const resp = await fetch(OVERPASS_SERVERS[i], {
         method: "POST",
         body: "data=" + encodeURIComponent(query),
@@ -208,8 +208,6 @@ async function overpass(query, results) {
   }
   throw lastError || new Error("unknown");
 }
-
-const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 function errorText(e) {
   const m = String(e && e.message);
@@ -233,7 +231,22 @@ function search(force) {
     return;
   }
 
-  navigator.geolocation.getCurrentPosition(async pos => {
+  // 1re tentative en GPS précis. Si elle traîne, on retombe sur la position
+  // approximative (Wi-Fi / réseau), quasi instantanée, plutôt que d'échouer.
+  navigator.geolocation.getCurrentPosition(onPosition, () => {
+    navigator.geolocation.getCurrentPosition(onPosition, onGeoError,
+      { enableHighAccuracy: false, timeout: 8000, maximumAge: 300000 });
+  }, { enableHighAccuracy: true, timeout: 6000, maximumAge: 120000 });
+
+  function onGeoError(err) {
+    const txt = err.code === 1
+      ? "Géolocalisation refusée.<br>Autorise-la dans les réglages de Safari pour ce site."
+      : "Position introuvable. Réessaie en extérieur ou active le Wi-Fi.";
+    results.innerHTML = '<div class="msg">' + txt + '</div>';
+    btn.disabled = false;
+  }
+
+  async function onPosition(pos) {
     const { latitude: lat, longitude: lon } = pos.coords;
     const minutes = +document.getElementById("radius").value;
     const radius = radiusForMinutes(minutes);
@@ -253,10 +266,10 @@ function search(force) {
 
     results.innerHTML = '<div class="msg"><div class="spinner"></div>Recherche des commerces…</div>';
 
-    // On interroge au minimum le périmètre 10 min : ainsi les choix 3, 5 et 10 min
-    // partagent une seule requête au lieu d'en déclencher une chacun.
-    const fetchRadius = Math.max(radius, radiusForMinutes(BASE_MINUTES));
-    const query = `[out:json][timeout:25];
+    // On interroge exactement le périmètre demandé : une recherche à 3 min
+    // reste légère et rapide. Le cache évite les requêtes inutiles ensuite.
+    const fetchRadius = radius;
+    const query = `[out:json][timeout:15];
       (
         nwr["shop"](around:${fetchRadius},${lat},${lon});
         nwr["amenity"~"^(restaurant|fast_food|cafe|bar|pub|biergarten|nightclub|ice_cream|pharmacy|bank|post_office|fuel|doctors|dentist|veterinary|car_wash)$"](around:${fetchRadius},${lat},${lon});
@@ -276,13 +289,7 @@ function search(force) {
     } finally {
       btn.disabled = false;
     }
-  }, err => {
-    const txt = err.code === 1
-      ? "Géolocalisation refusée.<br>Autorise-la dans les réglages de Safari pour ce site."
-      : "Position introuvable. Réessaie en extérieur ou active le Wi-Fi.";
-    results.innerHTML = '<div class="msg">' + txt + '</div>';
-    btn.disabled = false;
-  }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }); // maximumAge:0 = position fraîche, jamais celle en cache
+  }
 }
 
 /* Transforme la réponse OSM en objets exploitables */
